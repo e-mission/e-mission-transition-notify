@@ -29,12 +29,14 @@ import java.util.Set;
 
 import de.appplant.cordova.plugin.localnotification.TriggerReceiver;
 import de.appplant.cordova.plugin.notification.Manager;
+import de.appplant.cordova.plugin.notification.Request;
+import de.appplant.cordova.plugin.notification.Options;
 
 /*
  * Importing dependencies from the logger plugin
  */
-import edu.berkeley.eecs.emission.BuildConfig;
-import edu.berkeley.eecs.emission.R;
+
+
 
 
 import edu.berkeley.eecs.emission.cordova.tracker.wrapper.SimpleLocation;
@@ -161,7 +163,7 @@ public class TransitionNotificationReceiver extends BroadcastReceiver {
                    }
                    Log.d(context, TAG, "generating notification for event "+eventName
                                + " and id = " + currNotifyConfig.getLong(ID));
-                   Manager.getInstance(context).schedule(currNotifyConfig, TriggerReceiver.class);
+                   Manager.getInstance(context).schedule(new Request(new Options(currNotifyConfig)), TriggerReceiver.class);
                    } else {
                        Log.d(context, TAG, "notification for event "+eventName+" and id = "+currNotifyConfig.getLong(ID)
                         +" muted, skip");
