@@ -36,8 +36,8 @@ import de.appplant.cordova.plugin.notification.Options;
  * Importing dependencies from the logger plugin
  */
 
-
-
+import edu.berkeley.eecs.emission.BuildConfig;
+import edu.berkeley.eecs.emission.R;
 
 import edu.berkeley.eecs.emission.cordova.tracker.wrapper.SimpleLocation;
 import edu.berkeley.eecs.emission.cordova.tracker.wrapper.Transition;
