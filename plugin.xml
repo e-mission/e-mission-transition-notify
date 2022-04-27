@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <plugin xmlns="http://www.phonegap.com/ns/plugins/1.0"
         id="cordova-plugin-em-transition-notify"
-        version="1.2.6">
+        version="1.2.7">
 
   <name>TransitionNotification</name>
   <description>Transition notification. Specially good for trip start and trip end notifications </description>

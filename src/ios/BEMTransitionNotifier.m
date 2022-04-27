@@ -8,6 +8,7 @@
 #import "LocalNotificationManager.h"
 #import "SimpleLocation.h"
 #import "Transition.h"
+#import "StatsEvent.h"
 
 #define TRIP_STARTED @"trip_started"
 #define TRIP_ENDED @"trip_ended"
@@ -69,7 +70,11 @@
         //  || [transition isEqualToString:CFCTransitionTripEnded])
     {
         NSDictionary* autogenData = [self getTripStartEndData];
-        return [self postNativeAndNotify:TRIP_ENDED withData:autogenData];
+        if (autogenData != NULL) {
+            return [self postNativeAndNotify:TRIP_ENDED withData:autogenData];
+        } else {
+            [LocalNotificationManager addNotification:[NSString stringWithFormat:@"autogenData == NULL, skipping generic transition"] showUI:FALSE];
+        }
     }
     
     if ([transition isEqualToString:CFCTransitionTrackingStopped]) {
@@ -79,7 +84,7 @@
     if ([transition isEqualToString:CFCTransitionStartTracking]) {
         return [self postNativeAndNotify:TRACKING_STARTED withData:NULL];
     }
-    }
+}
     
 - (void)postNativeAndNotify:(NSString*)genericTransition withData:(NSDictionary*)autogenData
 {
@@ -152,7 +157,11 @@
 {
     NSMutableDictionary* retData = [NSMutableDictionary new];
     NSArray* lastLocArray = [DataUtils getLastPoints:1];
-    NSAssert([lastLocArray count] > 0, @"Found no locations while ending trip!");
+    if ([lastLocArray count] == 0) {
+        StatsEvent* se = [[StatsEvent alloc] initForEvent:@"no_locations_while_ending_trip"];
+        [[BuiltinUserCache database] putMessage:@"key.usercache.client_error" value:se];
+        return NULL;
+    }
     
     SimpleLocation* lastLoc = lastLocArray[0];
     retData[@"end_ts"] = @(lastLoc.ts);
@@ -164,9 +173,12 @@
     if (![endTransition.transition isEqualToString:CFCTransitionTripEndDetected]) {
         [LocalNotificationManager addNotification:[NSString stringWithFormat:@"endTransition = %@, notified before save?", endTransition.transition]];
     }
-    /*
-    NSAssert([endTransition.transition isEqualToString:CFCTransitionTripEndDetected], @"lastTransition is %@, NOT TRIP_END_DETECTED", endTransition.transition);
-    */
+
+    if (![endTransition.transition isEqualToString:CFCTransitionTripEndDetected]) {
+        StatsEvent* se = [[StatsEvent alloc] initForEvent:@"last_transition_is_not_trip_end_detected"];
+        [[BuiltinUserCache database] putMessage:@"key.usercache.client_error" value:se];
+        return NULL;
+    }
     
     Transition* startTransition;
     Transition* beforeStartTransition;
@@ -176,7 +188,11 @@
             beforeStartTransitionPointer:&beforeStartTransition];
 
     SimpleLocation* firstLoc = [self getFirstPoint:startTransition];
-    NSAssert(firstLoc != NULL, @"firstLoc = NULL, cannot set!");
+    if (firstLoc == NULL) {
+        StatsEvent* se = [[StatsEvent alloc] initForEvent:@"first_loc_null"];
+        [[BuiltinUserCache database] putMessage:@"key.usercache.client_error" value:se];
+        return NULL;
+    }
     retData[@"start_ts"] = @(firstLoc.ts);
     retData[@"start_lat"] = @(firstLoc.latitude);
     retData[@"start_lng"] = @(firstLoc.longitude);
@@ -193,7 +209,11 @@
                                   getFirstSensorData:@"key.usercache.filtered_location"
                                   nEntries:1
                                   wrapperClass:[SimpleLocation class]];
-        NSAssert([firstLocArray count] > 0, @"Found no locations while ending trip!");
+        if ([firstLocArray count] == 0) {
+            StatsEvent* se = [[StatsEvent alloc] initForEvent:@"no_locations_while_ending_trip"];
+            [[BuiltinUserCache database] putMessage:@"key.usercache.client_error" value:se];
+            return NULL;
+        }
         return firstLocArray[0];
     } else {
         // Find points around the start transition
@@ -213,10 +233,18 @@
                     getFirstSensorData:@"key.usercache.filtered_location"
                     nEntries:1
                     wrapperClass:[SimpleLocation class]];
-            NSAssert([firstLocArray count] > 0, @"Found no locations while ending trip!");
+            if ([firstLocArray count] == 0) {
+                StatsEvent* se = [[StatsEvent alloc] initForEvent:@"no_locations_while_ending_trip"];
+                [[BuiltinUserCache database] putMessage:@"key.usercache.client_error" value:se];
+                return NULL;
+            }
             SimpleLocation* firstLoc = firstLocArray[0];
-            NSAssert(firstLoc.ts > startTransition.ts, @"firstLocArray[0].ts (%f) < startTransition.ts (%f)",
-                     firstLoc.ts, startTransition.ts);
+            if (firstLoc.ts <= startTransition.ts) {
+                StatsEvent* se = [[StatsEvent alloc] initForReading:@"first_loc_before_start_transition"
+                    withReading:(firstLoc.ts - startTransition.ts)];
+                [[BuiltinUserCache database] putMessage:@"key.usercache.client_error" value:se];
+                return NULL;
+            }
             return firstLoc;
         } else {
             // There are points around the start transition.
@@ -228,9 +256,11 @@
                        beforePoints:beforePoints
                         afterPoints:equalOrAfterPoints];
             
-            NSAssert([beforePoints count] > 0 || [equalOrAfterPoints count] > 0,
-                     @"beforePoints.count %lu afterPoints.count %lu",
-                     [beforePoints count], [equalOrAfterPoints count]);
+            if ([beforePoints count] <= 0 && [equalOrAfterPoints count] <= 0) {
+                StatsEvent* se = [[StatsEvent alloc] initForEvent:@"before_and_after_point_count_zero"];
+                [[BuiltinUserCache database] putMessage:@"key.usercache.client_error" value:se];
+                return NULL;
+            }
             // Interval queries return points sorted in ascending order
             // So we either return the last point before or the first point after
             long beforeCount = [beforePoints count];
